@@ -1,0 +1,141 @@
+
+clear; clc; close all;
+
+%% 1. CARGA DE DATOS EXPERIMENTALES (TABLA ORIGINAL)
+datos = [
+    100, 152.3; 120, 149.1; 145, 146.8; 170, 144.9; 200, 142.0;
+    235, 139.5; 270, 137.9; 310, 136.1; 355, 134.8; 405, 133.6;
+    460, 132.7; 520, 131.9; 585, 131.4; 655, 131.1; 730, 130.9;
+    810, 131.0; 895, 131.3; 985, 131.9; 1080, 132.7; 1180, 133.8;
+    1290, 135.2; 1410, 136.9; 1540, 138.9; 1680, 141.1; 1830, 143.5;
+    1990, 146.1; 2160, 149.0; 2340, 152.2; 2530, 155.6; 2730, 159.2
+];
+f = datos(:,1); Z = datos(:,2); n = length(f);
+
+%% PÁGINA 1 - FIGURA 1: ANÁLISIS EXPLORATORIO (CON MÍNIMO ESTIMADO)
+figure('Name', 'Análisis Exploratorio de Impedancia');
+
+% Graficar los puntos experimentales unidos por línea continua fina
+plot(f, Z, 'r-o', 'MarkerFaceColor', 'r', 'LineWidth', 1, 'DisplayName', 'Mediciones Experimentales'); 
+hold on;
+
+% Marcador del mínimo estimado visualmente (Estrella azul)
+f_min_est = 730;
+Z_min_est = 130.9;
+plot(f_min_est, Z_min_est, 'bx', 'MarkerSize', 12, 'LineWidth', 2, 'DisplayName', 'Mínimo Estimado = 730.0 Hz');
+
+% Líneas guía discontinuas del plano cartesiano cruzando en el mínimo estimado
+line([0, 3000], [Z_min_est, Z_min_est], 'Color', [0.7 0.7 0.7], 'LineStyle', ':', 'LineWidth', 0.8, 'HandleVisibility', 'off');
+line([f_min_est, f_min_est], [125, 165], 'Color', [0.7 0.7 0.7], 'LineStyle', ':', 'LineWidth', 0.8, 'HandleVisibility', 'off');
+
+xlim([0, 3000]); ylim([125, 165]); grid on;
+xlabel('Frecuencia f (Hz)'); ylabel('Magnitud de Impedancia |Z| (\Omega)');
+title('Perfil Espectroscópico: Magnitud de Impedancia |Z| vs. Frecuencia f');
+legend('Location', 'northeast');
+
+
+%% PÁGINAS 2 Y 3 - FIGURA 2: DEMOSTRACIÓN DEL FENÓMENO DE RUNGE
+% Ajustes polinómicos aplicando centrado y escalado estadístico [mu] para evitar warnings
+[p29, ~, mu29] = polyfit(f, Z, n-1);
+[p5, ~, mu5]   = polyfit(f, Z, 5);
+[p10, ~, mu10] = polyfit(f, Z, 10);
+[p15, ~, mu15] = polyfit(f, Z, 15);
+
+% Malla fina de alta resolución para evaluar las curvas continuas
+f_fina = linspace(min(f), max(f), 1000);
+Z_p29  = polyval(p29, f_fina, [], mu29);
+Z_p5   = polyval(p5, f_fina, [], mu5);
+Z_p10  = polyval(p10, f_fina, [], mu10);
+Z_p15  = polyval(p15, f_fina, [], mu15);
+
+figure('Name', 'Comparativa e Inestabilidad Polinómica');
+plot(f, Z, 'ko', 'DisplayName', 'Datos Experimentales'); hold on;
+plot(f_fina, Z_p5, '--', 'LineWidth', 1.5, 'DisplayName', 'Polinomio Grado 5');
+plot(f_fina, Z_p10, ':', 'LineWidth', 1.5, 'DisplayName', 'Polinomio Grado 10');
+plot(f_fina, Z_p15, '-.', 'LineWidth', 1.5, 'DisplayName', 'Polinomio Grado 15');
+plot(f_fina, Z_p29, 'r-', 'LineWidth', 1.5, 'DisplayName', 'Polinomio Global (Grado 29)');
+ylim([100, 180]); grid on; 
+xlabel('Frecuencia f (Hz)'); ylabel('Magnitud de Impedancia |Z| (\Omega)');
+title('Comparativa de Modelos: Interpolación Polinómica Global vs. Spline Cúbico Natural');
+legend('Location', 'best');
+
+
+%% PÁGINA 4 - FIGURA 3: SPLINES CÚBICOS NATURALES
+spline_fit = csape(f, Z, 'variational'); % Construye el trazador con S''=0 en los extremos
+Z_spline = fnval(spline_fit, f_fina);
+Z_1000_spline = fnval(spline_fit, 1000);
+
+fprintf('--- PARTE B: INTERPOLACIÓN ---\n');
+fprintf('Valor interpolado con Spline Cúbico en f = 1000 Hz: %.4f Ohm\n\n', Z_1000_spline);
+
+figure('Name', 'Ajuste Final con Splines Cúbicos');
+plot(f, Z, 'ko', 'DisplayName', 'Datos Experimentales'); hold on;
+plot(f_fina, Z_spline, 'b-', 'LineWidth', 2, 'DisplayName', 'Spline Cúbico Natural');
+plot(1000, Z_1000_spline, 'mX', 'MarkerSize', 12, 'LineWidth', 2, 'DisplayName', 'Evaluación 1000 Hz');
+grid on; xlabel('Frecuencia f (Hz)'); ylabel('Magnitud de Impedancia |Z| (\Omega)');
+title('Comparativa Analítica de Modelos: Polinomio Global vs. Spline Cúbico Natural');
+legend('Location', 'best');
+
+
+%% PÁGINA 5 - FIGURA 4: DERIVACIÓN NUMÉRICA ANALÍTICA DEL SPLINE
+spline_deriv1 = fnder(spline_fit, 1); % Obtiene analíticamente la función de la 1° derivada
+Z_deriv1 = fnval(spline_deriv1, f_fina);
+spline_deriv2 = fnder(spline_fit, 2); % Obtiene analíticamente la función de la 2° derivada
+
+% Cálculo exacto de raíces y extremos mediante fzero sobre el spline diferenciado
+f_minimo_exacto = fzero(@(x) fnval(spline_deriv1, x), 730);
+Z_minimo_exacto = fnval(spline_fit, f_minimo_exacto);
+S_segunda_deriv = fnval(spline_deriv2, f_minimo_exacto);
+
+fprintf('--- PARTE C: DERIVACIÓN NUMÉRICA ---\n');
+fprintf('Ubicación exacta del Mínimo (Cruce por cero de dZ/df): %.2f Hz\n', f_minimo_exacto);
+fprintf('Valor de impedancia en el mínimo: %.4f Ohm\n', Z_minimo_exacto);
+fprintf('Valor de la Segunda Derivada en el mínimo: %.6f Ohm/Hz^2\n\n', S_segunda_deriv);
+
+figure('Name', 'Derivada Numérica del Spline');
+plot(f_fina, Z_deriv1, 'g-', 'LineWidth', 2, 'DisplayName', 'Derivada Analítica d|Z|/df'); hold on;
+plot(f_minimo_exacto, 0, 'ro', 'MarkerFaceColor', 'r', 'DisplayName', 'Mínimo Identificado (742.16 Hz)');
+line([min(f) max(f)], [0 0], 'Color', 'k', 'LineStyle', '--');
+grid on; xlabel('Frecuencia f (Hz)'); ylabel('d|Z|/df (\Omega/Hz)');
+title('Comportamiento de la Primera Derivada Espectral de la Impedancia');
+legend('Location', 'best');
+
+
+%% PÁGINA 6 - PARTE D: BÚSQUEDA DE RAÍCES Y UMBRAL CRÍTICO
+Z_th = 150;
+raiz_fun = @(x) fnval(spline_fit, x) - Z_th;
+deriv_fun = @(x) fnval(spline_deriv1, x);
+
+% Implementación del Método de Bisección (Intervalo acotado en alta frecuencia)
+a = 2000; b = 2400; tol = 1e-5; max_iter = 100;
+for iter = 1:max_iter
+    c_bis = (a + b) / 2;
+    if abs(raiz_fun(c_bis)) < tol || (b - a)/2 < tol
+        break;
+    end
+    if sign(raiz_fun(c_bis)) == sign(raiz_fun(a))
+        a = c_bis;
+    else
+        b = c_bis;
+    end
+end
+
+% Implementación del Método de Newton-Raphson 
+x0 = 2100; 
+for iter_n = 1:max_iter
+    x1 = x0 - raiz_fun(x0)/deriv_fun(x0);
+    if abs(x1 - x0) < tol
+        break;
+    end
+    x0 = x1;
+end
+
+% Análisis de sensibilidad analítica inversa
+sensibilidad = 1 / deriv_fun(x1);
+r1 = fzero(raiz_fun, 110); % Calcula la raíz 1 en baja frecuencia
+
+fprintf('--- PARTE D: BÚSQUEDA DE RAÍCES ---\n');
+fprintf('Raíz 1 detectada a baja frecuencia: %.2f Hz\n', r1);
+fprintf('Raíz 2 (Bisección - Alta frecuencia): %.2f Hz en %d iteraciones\n', c_bis, iter);
+fprintf('Raíz 2 (Newton-Raphson - Alta frecuencia): %.2f Hz en %d iteraciones\n', x1, iter_n);
+fprintf('Sensibilidad analítica df/d|Z| en la raíz alta: %.4f Hz/Ohm\n', sensibilidad);
