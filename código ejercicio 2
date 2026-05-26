@@ -1,0 +1,166 @@
+%% EXAMEN PARCIAL: MÉTODOS NUMÉRICOS - PROCESAMIENTO ESPECTRO BIOMÉDICO
+clear; clc; close all;
+
+%% =========================================================================
+%% PARTE 0: CARGA DE DATOS EXPERIMENTALES REALES (40 PUNTOS)
+%% =========================================================================
+f_data = [10.0, 12.5, 15.0, 17.5, 20.0, 22.5, 25.0, 27.5, 30.0, 32.5, ...
+          35.0, 37.5, 40.0, 42.5, 45.0, 47.5, 50.0, 52.5, 55.0, 57.5, ...
+          60.0, 62.5, 65.0, 67.5, 70.0, 72.5, 75.0, 77.5, 80.0, 82.5, ...
+          85.0, 87.5, 90.0, 92.5, 95.0, 97.5, 100.0, 102.5, 105.0, 107.5]';
+
+V_data = [0.842, 0.911, 0.986, 1.062, 1.143, 1.227, 1.314, 1.401, 1.482, 1.551, ...
+          1.216, 1.048, 0.866, 0.689, 0.521, 0.364, 0.223, 0.103, 0.012, -0.041, ...
+         -0.057, -0.034, 0.018, 0.096, 0.197, 0.318, 0.452, 0.579, 0.700, 0.809, ...
+          0.611, 0.688, 0.756, 0.811, 0.856, 0.894, 0.926, 0.954, 0.980, 1.004]';
+
+Z_data = [182.4, 178.9, 175.1, 171.0, 166.8, 162.7, 158.9, 155.4, 152.0, 149.0, ...
+          146.1, 145.2, 145.8, 147.3, 149.9, 153.5, 158.0, 163.2, 168.9, 174.8, ...
+          180.5, 186.2, 191.5, 196.2, 200.1, 203.1, 205.2, 206.3, 206.1, 204.7, ...
+          198.0, 194.4, 190.9, 187.8, 185.1, 183.0, 181.6, 180.8, 180.6, 180.9]';
+
+h = 2.5; % Paso constante de frecuencia (kHz)
+
+%% =========================================================================
+%% PARTE 1: INTERPOLACIÓN BÁSICA Y SPLINE CÚBICO
+%% =========================================================================
+fprintf('===================================================\n');
+fprintf('     PARTE 1: RESULTADOS DE INTERPOLACIÓN          \n');
+fprintf('===================================================\n');
+
+% Estimaciones usando Lagrange local (Grado 2, 3 puntos más cercanos)
+v_lag_41 = resolver_lagrange(41.0, f_data, V_data);
+z_lag_41 = resolver_lagrange(41.0, f_data, Z_data);
+v_lag_73 = resolver_lagrange(73.0, f_data, V_data);
+z_lag_73 = resolver_lagrange(73.0, f_data, Z_data);
+
+% Estimaciones usando Spline Cúbico Natural (Nativo de MATLAB para validación)
+v_spl_41 = spline(f_data, V_data, 41.0);
+z_spl_41 = spline(f_data, Z_data, 41.0);
+v_spl_73 = spline(f_data, V_data, 73.0);
+z_spl_73 = spline(f_data, Z_data, 73.0);
+
+% Imprimir Tabla comparativa de la Parte 1
+fprintf('\nTABLA COMPARATIVA DE RESULTADOS DE INTERPOLACIÓN\n');
+fprintf('| Variable (kHz) | Lagrange (Grado 2) | Spline Cúbico Natural |\n');
+fprintf('| V(41.0 kHz)    |       %.4f       |        %.4f         |\n', v_lag_41, v_spl_41);
+fprintf('| Z(41.0 kHz)    |      %.4f       |       %.4f         |\n', z_lag_41, z_spl_41);
+fprintf('| V(73.0 kHz)    |       %.4f       |        %.4f         |\n', v_lag_73, v_spl_73);
+fprintf('| Z(73.0 kHz)    |      %.4f       |       %.4f         |\n', z_lag_73, z_spl_73);
+
+%% =========================================================================
+%% PARTE 2: DERIVACIÓN NUMÉRICA
+%% =========================================================================
+fprintf('\n===================================================\n');
+fprintf('            PARTE 2: DERIVACIÓN NUMÉRICA           \n');
+fprintf('===================================================\n');
+
+% Encontrar índices para los puntos internos requeridos
+idx_40 = find(f_data == 40.0);
+idx_70 = find(f_data == 70.0);
+idx_100 = find(f_data == 100.0);
+
+% 1. Diferencias finitas para puntos internos (Voltaje)
+% Orden 2 (Centrada): (f(x+h) - f(x-h)) / (2h)
+dv_c2_40 = (V_data(idx_40+1) - V_data(idx_40-1)) / (2*h);
+dv_c2_70 = (V_data(idx_70+1) - V_data(idx_70-1)) / (2*h);
+dv_c2_100 = (V_data(idx_100+1) - V_data(idx_100-1)) / (2*h);
+
+% Orden 4 (Centrada): (-f(x+2h) + 8f(x+h) - 8f(x-h) + f(x-2h)) / (12h)
+dv_c4_40 = (-V_data(idx_40+2) + 8*V_data(idx_40+1) - 8*V_data(idx_40-1) + V_data(idx_40-2)) / (12*h);
+dv_c4_70 = (-V_data(idx_70+2) + 8*V_data(idx_70+1) - 8*V_data(idx_70-1) + V_data(idx_70-2)) / (12*h);
+dv_c4_100 = (-V_data(idx_100+2) + 8*V_data(idx_100+1) - 8*V_data(idx_100-1) + V_data(idx_100-2)) / (12*h);
+
+% 2. Extremo inferior f = 10.0 kHz (Fórmula progresiva Orden 2)
+% (-3f(x) + 4f(x+h) - f(x+2h)) / (2h)
+dv_prog_10 = (-3*V_data(1) + 4*V_data(2) - V_data(3)) / (2*h);
+
+% 4. Derivadas continuas por Spline para contrastar
+pp_V = spline(f_data, V_data);
+[breaks, coefs, l, k, d] = unmkpp(pp_V);
+coefs_d1 = [3*coefs(:,1), 2*coefs(:,2), coefs(:,3)];
+pp_dV = mkpp(breaks, coefs_d1);
+
+dv_spl_10 = ppval(pp_dV, 10.0);
+dv_spl_40 = ppval(pp_dV, 40.0);
+dv_spl_70 = ppval(pp_dV, 70.0);
+dv_spl_100 = ppval(pp_dV, 100.0);
+
+% Mostrar tabla comparativa de derivadas
+fprintf('TABLA COMPARATIVA FINAL DE DERIVADAS (dV/df):\n');
+fprintf('| Frecuencia | Diferencia O(h^2) | Centrada O(h^4) | Derivada Spline |\n');
+fprintf('|  10.0 kHz  |      %.4f       |       N/A       |     %.4f      |\n', dv_prog_10, dv_spl_10);
+fprintf('|  40.0 kHz  |     %.4f       |     %.4f       |    %.4f      |\n', dv_c2_40, dv_c4_40, dv_spl_40);
+fprintf('|  70.0 kHz  |      %.4f       |      %.4f       |     %.4f      |\n', dv_c2_70, dv_c4_70, dv_spl_70);
+fprintf('| 100.0 kHz  |      %.4f       |      %.4f       |     %.4f      |\n', dv_c2_100, dv_c4_100, dv_spl_100);
+
+%% =========================================================================
+%% PARTE 3: RAÍCES POR CAMBIO DE SIGNO Y BISECCIÓN (CRUCE POR CERO DE V)
+%% =========================================================================
+fprintf('\n===================================================\n');
+fprintf('         PARTE 3: LOCALIZACIÓN DE ALARMAS          \n');
+fprintf('===================================================\n');
+
+% Definición explícita de las funciones objetivo sobre el voltaje V(f) = 0
+fun_voltaje_spline = @(f) ppval(pp_V, f);
+
+% Bisección en tabla original (asumiendo evaluación lineal o directa sobre nodos)
+% Primer cruce detectado entre 55.0 y 57.5 kHz
+[root_b1, ~] = bisection_method(@(f) interp1(f_data, V_data, f), 55.0, 57.5, 1e-4);
+% Segundo cruce detectado entre 62.5 y 65.0 kHz
+[root_b2, ~] = bisection_method(@(f) interp1(f_data, V_data, f), 62.5, 65.0, 1e-4);
+
+% Refinamiento usando la curva suave del Spline Cúbico
+[root_s1, ~] = bisection_method(fun_voltaje_spline, 55.0, 57.5, 1e-4);
+[root_s2, ~] = bisection_method(fun_voltaje_spline, 62.5, 65.0, 1e-4);
+
+fprintf('TABLA COMPARATIVA DE ALARMAS (RESULTADO REFINADO):\n');
+fprintf('|   Frecuencia Alarma   | Bisección en Tabla | Refinada Spline |\n');
+fprintf('| 1° Cruce por cero (f) |     %.4f kHz     |   %.4f kHz   |\n', root_b1, root_s1);
+fprintf('| 2° Cruce por cero (f) |     %.4f kHz     |   %.4f kHz   |\n', root_b2, root_s2);
+
+%% =========================================================================
+%% PARTE E: VISUALIZACIÓN GRÁFICA DEL COMPORTAMIENTO BIOMÉDICO
+%% =========================================================================
+f_plot = linspace(10, 107.5, 1000);
+V_plot = ppval(pp_V, f_plot);
+
+figure('Name', 'Monitoreo de Alarmas del Biosensor', 'NumberTitle', 'off');
+plot(f_plot, V_plot, 'b-', 'LineWidth', 2); hold on;
+yline(0, 'r--', 'Línea de Conmutación (0 V)', 'LineWidth', 1.2);
+plot([root_s1, root_s2], [0, 0], 'ko', 'MarkerFaceColor', 'g', 'MarkerSize', 8);
+grid on;
+title('Curva del Voltaje del Biosensor y Puntos de Alarma Digital');
+xlabel('Frecuencia f (kHz)');
+ylabel('Voltaje V (V)');
+legend('Voltaje Smoothed (Spline)', 'Umbral Alarma', 'Frecuencias de Cruce', 'Location', 'best');
+
+%% =========================================================================
+%% FUNCIONES AUXILIARES
+%% =========================================================================
+function valor = resolver_lagrange(f_obj, x, y)
+    % Busca los tres puntos más cercanos de la tabla
+    [~, idx] = sort(abs(x - f_obj));
+    idx_3 = sort(idx(1:3));
+    x0 = x(idx_3(1)); x1 = x(idx_3(2)); x2 = x(idx_3(3));
+    y0 = y(idx_3(1)); y1 = y(idx_3(2)); y2 = y(idx_3(3));
+    
+    % Polinomios base
+    L0 = ((f_obj-x1)*(f_obj-x2))/((x0-x1)*(x0-x2));
+    L1 = ((f_obj-x0)*(f_obj-x2))/((x1-x0)*(x1-x2));
+    L2 = ((f_obj-x0)*(f_obj-x1))/((x2-x0)*(x2-x1));
+    valor = L0*y0 + L1*y1 + L2*y2;
+end
+
+function [root, iter] = bisection_method(func, xl, xu, tol)
+    iter = 0; max_iter = 100;
+    while (xu - xl)/2 > tol && iter < max_iter
+        iter = iter + 1;
+        xr = (xl + xu) / 2;
+        if func(xr) == 0, root = xr; return;
+        elseif func(xl) * func(xr) < 0, xu = xr;
+        else, xl = xr;
+        end
+    end
+    root = (xl + xu) / 2;
+end
